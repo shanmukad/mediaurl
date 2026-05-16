@@ -1,0 +1,5 @@
+{
+    "base_url": "http://192.168.253.176:1002",
+    "login_url": "http://192.168.253.176:1002/login",
+    "upload_url": "http://192.168.253.176:1002/vid_to_url"
+}

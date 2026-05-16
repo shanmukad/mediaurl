@@ -1,0 +1,11 @@
+2026-05-16 23:51:18,704 - === MONITOR STARTED ===
+2026-05-16 23:51:52,480 - Form data requires "python-multipart" to be installed. 
+You can install "python-multipart" with: 
+
+pip install python-multipart
+
+2026-05-16 23:52:23,088 - Form data requires "python-multipart" to be installed. 
+You can install "python-multipart" with: 
+
+pip install python-multipart
+

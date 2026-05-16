@@ -22,6 +22,9 @@ CONFIG_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "config.json"))
 with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
+USERNAME = os.getenv("UI_USERNAME")
+PASSWORD = os.getenv("UI_PASSWORD")   
+
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
 
@@ -50,8 +53,8 @@ def run_bulk_automation(file_list):
             logging.info("Opening login page")
             page.goto(config["login_url"], timeout=120000)
 
-            page.fill("#email", config["username"])
-            page.fill("#password", config["password"])
+            page.fill("#email", USERNAME)
+            page.fill("#password", PASSWORD)
             page.click("button[type='submit']")
             page.wait_for_load_state("networkidle")
 
