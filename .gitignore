@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
+logs/
+*.log
+
+MediaURL/playwright_profile/
+
+*.db
+*.sqlite
+
+processed_tickets.json

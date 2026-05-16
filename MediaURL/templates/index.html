@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Provisioning AI Platform</title>
+    <link rel="stylesheet" href="/static/style1.css">
+</head>
+<body>
+<div class="dots"></div>
+
+<div class="container">
+    <!-- LEFT PANEL -->
+    <div class="left">
+        <div class="logo-wrap">
+            <img class="logo" src="/static/Karix1.jpg" alt="Karix Logo">
+        </div>
+
+        <div class="title">Provisioning AI</div>
+
+        <div class="subtitle">
+            <b>One Platform - Many Solutions</b>
+        </div>
+
+        <div class="subtitle">
+           • Media URL • Voice  
+        </div>
+
+        <div class="accent-line"></div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right">
+        <div class="card">
+            <h2>Media URL</h2>
+
+            <input
+                id="ticketInput"
+                placeholder="Enter Ticket IDs (comma separated)"
+                oninput="handleInputChange()">
+
+            <button
+                class="primary"
+                id="processBtn"
+                onclick="processTicket()"
+                disabled>
+                Start Processing
+            </button>
+
+            <div class="status" id="statusBox">
+                Waiting for ticket input...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+let processing = false;
+let polling = null;
+let activeTickets = [];
+
+/* ENABLE BUTTON */
+function handleInputChange() {
+
+    const input =
+        document
+            .getElementById("ticketInput")
+            .value
+            .trim();
+
+    document
+        .getElementById("processBtn")
+        .disabled =
+            input.length === 0 || processing;
+}
+
+/* START */
+async function processTicket() {
+
+    const ticketInput =
+        document
+            .getElementById("ticketInput")
+            .value
+            .trim();
+
+    if (!ticketInput) return;
+
+    const processBtn =
+        document.getElementById("processBtn");
+
+    const statusBox =
+        document.getElementById("statusBox");
+
+    processing = true;
+
+    processBtn.disabled = true;
+
+    const ticketIds =
+        ticketInput
+            .split(",")
+            .map(t => t.trim());
+
+    /* =========================
+       PREVIEW VALIDATION
+    ========================= */
+
+    for (const tid of ticketIds) {
+
+        const previewRes =
+            await fetch(`/preview/${tid}`);
+
+        const preview =
+            await previewRes.json();
+
+        if (!preview.success) {
+
+            alert(
+                `Unable to fetch ticket ${tid}`
+            );
+
+            processing = false;
+
+            processBtn.disabled = false;
+
+            return;
+        }
+
+        let confirmMessage =
+
+            `Ticket ID: ${tid}\n\n` +
+
+            `Subject:\n${preview.subject}\n\n` +
+
+            `Attachments: ${preview.attachments}\n\n`;
+
+        if (!preview.is_valid) {
+
+            confirmMessage +=
+                "⚠ This may NOT be a Media URL request.\n\n";
+        }
+
+        confirmMessage +=
+            "Proceed with Media URL processing?";
+
+        const confirmed =
+            confirm(confirmMessage);
+
+        if (!confirmed) {
+
+            statusBox.innerHTML =
+                `Cancelled by user for ticket ${tid}`;
+
+            processing = false;
+
+            processBtn.disabled = false;
+
+            return;
+        }
+    }
+
+    /* =========================
+       TRIGGER PROCESSING
+    ========================= */
+
+    statusBox.innerHTML =
+        "Queueing ticket...";
+
+    try {
+
+        const formData = new FormData();
+
+        formData.append(
+            "ticket_id",
+            ticketInput
+        );
+
+        const response =
+            await fetch(
+                "/trigger",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+        const data =
+            await response.json();
+
+        activeTickets = [];
+
+        let html =
+            "<b>Processing Results:</b><br><br>";
+
+        data.results.forEach(item => {
+
+    let displayStatus = item.status;
+
+    
+
+    html +=
+        `Ticket ${item.ticket_id} → ${displayStatus}<br>`;
+
+    if (item.status === "queued") {
+
+        activeTickets.push(item.ticket_id);
+    }
+});
+
+        statusBox.innerHTML = html;
+
+       if (activeTickets.length === 0) {
+
+        processing = false;
+
+        processBtn.disabled = false;
+
+        return;
+        }
+        /* =========================
+           POLLING
+        ========================= */
+
+        if (polling) {
+
+            clearInterval(polling);
+        }
+
+        polling = setInterval(async () => {
+
+            try {
+
+                let lines = [];
+
+                let allDone = true;
+
+                for (const tid of activeTickets) {
+
+                    const response =
+                        await fetch(
+                            `/status/${tid}`
+                        );
+
+                    const statusData =
+                        await response.json();
+
+                    const statusText =
+                        statusData.status;
+
+                    lines.push(
+                        `Ticket ${tid}: ${statusText}`
+                    );
+
+                    if (
+                        ![
+                            "completed",
+                            "resolved",
+                            "failed",
+                            "error"
+                        ].includes(statusText)
+                    ) {
+
+                        allDone = false;
+                    }
+                }
+
+                statusBox.innerHTML =
+                    "<b>Current Status:</b><br>" +
+                    lines.join("<br>");
+
+                if (allDone) {
+
+                    clearInterval(polling);
+
+                    polling = null;
+
+                    processing = false;
+
+                    processBtn.disabled = false;
+                }
+
+            } catch (err) {
+
+                console.error(err);
+            }
+
+        }, 2000);
+
+    } catch (err) {
+
+        console.error(err);
+
+        statusBox.innerHTML =
+            "Processing failed.";
+
+        processing = false;
+
+        processBtn.disabled = false;
+    }
+}
+
+</script>
+</body>
+</html>
