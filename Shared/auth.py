@@ -131,7 +131,7 @@ async def login(page, context=None, force_relogin=True):
 # BROWSER CREATION (ASYNC)
 # =========================
 
-async def create_browser_context(headless=False):
+async def create_browser_context(headless=True):
     """
     Create async Playwright browser context.
 
