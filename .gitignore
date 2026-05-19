@@ -14,6 +14,8 @@ venv/
 runtime/logs.txt
 runtime/processed_tickets.json
 
+Shared/processed_tickets.json
+
 # Generated folders
 Input/
 Output/
