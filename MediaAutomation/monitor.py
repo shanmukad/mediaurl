@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 from dotenv import load_dotenv
-from MediaAutomation.upload_test import run_bulk_automation
+from MediaAutomation.automation_runner import run_bulk_automation
 
 load_dotenv()
 

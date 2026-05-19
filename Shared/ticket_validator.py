@@ -1,5 +1,5 @@
 import re
-
+from Shared.ticket_actions import MEDIA_KEYWORDS
 def normalize_text(text: str) -> str:
     if not text:
         return ""

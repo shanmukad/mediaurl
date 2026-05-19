@@ -107,7 +107,7 @@ def resolve_ticket(ticket_id: int):
 
     existing_priority = ticket.get(
         "priority"
-    ) or 3
+    ) or 2
 
     # =========================
     # RESOLVE PAYLOAD
@@ -183,9 +183,19 @@ MEDIA_URL_CUSTOM_FIELDS = {
     "cf_sop_referred": True,
     "cf_severity": "Major",
     "cf_group_fields_test": "Provisioning Team",
-    "cf_send_survey_to_customer": False,
-    "cf_cf_request_type": "None"
+    "cf_send_survey_to_customer": False
 }
+
+#Keyword Validation
+
+MEDIA_KEYWORDS = [
+    "aws link",
+    "media url",
+    "card links",
+    "share the link",
+    "attached catalogue",
+    "attached cards"
+]
 
 # =========================
 # FETCH TICKET PREVIEW
@@ -228,23 +238,13 @@ def get_ticket_preview(ticket_id: int):
     # KEYWORD VALIDATION
     # -------------------------
 
-    keywords = [
-
-        "aws link",
-        "media url",
-        "card links",
-        "share the link",
-        "attached catalogue",
-        "attached cards"
-    ]
-
     combined_text = (
         f"{subject} {description}"
     ).lower()
 
     keyword_match = any(
         k in combined_text
-        for k in keywords
+        for k in MEDIA_KEYWORDS
     )
 
     # -------------------------

@@ -1,15 +1,28 @@
-.venv/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+
+# Virtual Environment
+venv/
+.venv/
+
+# Environment Variables
 .env
-.idea/
+
+# Runtime files
+runtime/logs.txt
+runtime/processed_tickets.json
+
+# Generated folders
+Input/
+Output/
+Staging/
+Processed/
+
+# VS Code
 .vscode/
-logs/
-*.log
 
-MediaURL/playwright_profile/
-
-*.db
-*.sqlite
-
-processed_tickets.json
+# OS
+.DS_Store
+Thumbs.db

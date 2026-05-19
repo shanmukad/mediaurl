@@ -1,15 +1,22 @@
 from dotenv import load_dotenv
 import os
-import time
 import requests
-import glob
 import logging
 import zipfile
 import shutil
+
 from Shared.ticket_actions import (
     assign_ai_agent,
     resolve_ticket
 )
+
+from Shared.queue_manager import (
+    update_status,
+    load_processed,
+    save_processed
+)
+
+from MediaAutomation.automation_runner import run_bulk_automation
 
 load_dotenv()
 
@@ -33,9 +40,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-
-
-
 # =========================
 # HELPERS
 # =========================
@@ -48,7 +52,6 @@ def clean_name(name: str):
         .replace("\\", "_")
         .strip()
     )
-
 
 # =========================
 # DOWNLOAD ATTACHMENTS
@@ -188,7 +191,6 @@ def stage_attachments(ticket_id: int):
 
     return final_files
 
-
 # =========================
 # MOVE FILES TO INPUT
 # =========================
@@ -224,71 +226,6 @@ def move_staging_to_input(file_list):
 
     return final_inputs
 
-
-# =========================
-# WAIT FOR OUTPUT
-# =========================
-
-def wait_for_ticket_output(
-    ticket_id: int,
-    timeout: int = 180
-):
-
-    start_time = time.time()
-
-    pattern = os.path.join(
-        OUTPUT_DIR,
-        f"{ticket_id}_*.csv"
-    )
-
-    logging.info(
-        f"Waiting for output file: {pattern}"
-    )
-
-    while time.time() - start_time < timeout:
-
-        matching_files = glob.glob(pattern)
-
-        valid_files = []
-
-        for file in matching_files:
-
-            try:
-
-                modified_time = os.path.getmtime(file)
-
-                if modified_time >= start_time:
-
-                    valid_files.append(file)
-
-            except Exception as e:
-
-                logging.error(
-                    f"Error checking file {file}: {e}"
-                )
-
-        if valid_files:
-
-            latest_file = max(
-                valid_files,
-                key=os.path.getmtime
-            )
-
-            logging.info(
-                f"Detected output file: {latest_file}"
-            )
-
-            return latest_file
-
-        time.sleep(3)
-
-    logging.error(
-        f"No output generated for ticket {ticket_id}"
-    )
-
-    return None
-
-
 # =========================
 # SEND REPLY
 # =========================
@@ -310,10 +247,6 @@ def send_reply(
 
     auth = (FRESHDESK_API_KEY, "X")
 
-    # =========================
-    # FETCH TICKET DETAILS
-    # =========================
-
     ticket_resp = requests.get(
         ticket_url,
         auth=auth
@@ -329,15 +262,7 @@ def send_reply(
 
     ticket_data = ticket_resp.json()
 
-    # =========================
-    # FETCH REQUESTER EMAIL
-    # =========================
-
     requester_email = ticket_data.get("email")
-
-    # =========================
-    # FETCH CC EMAILS
-    # =========================
 
     cc_emails = ticket_data.get(
         "cc_emails",
@@ -351,10 +276,6 @@ def send_reply(
     logging.info(
         f"CC Emails: {cc_emails}"
     )
-
-    # =========================
-    # EMAIL BODY
-    # =========================
 
     body = """
     Hi,<br><br>
@@ -373,10 +294,6 @@ def send_reply(
 
         with open(file_path, "rb") as f:
 
-            # =========================
-            # ATTACHMENT PAYLOAD
-            # =========================
-
             files = [
                 (
                     "attachments[]",
@@ -388,27 +305,15 @@ def send_reply(
                 )
             ]
 
-            # =========================
-            # MULTIPART FORM DATA
-            # =========================
-
             data = [
                 ("body", body)
             ]
-
-            # =========================
-            # TO EMAIL
-            # =========================
 
             if requester_email:
 
                 data.append(
                     ("to_emails[]", requester_email)
                 )
-
-            # =========================
-            # CC EMAILS
-            # =========================
 
             if cc_emails:
 
@@ -417,14 +322,6 @@ def send_reply(
                     data.append(
                         ("cc_emails[]", email)
                     )
-
-            logging.info(
-                f"Multipart payload: {data}"
-            )
-
-            # =========================
-            # SEND REPLY
-            # =========================
 
             resp = requests.post(
                 reply_url,
@@ -441,13 +338,13 @@ def send_reply(
         if resp.status_code in (200, 201):
 
             logging.info(
-                f"✅ Reply sent for ticket {ticket_id}"
+                f"Reply sent for ticket {ticket_id}"
             )
 
             return True
 
         logging.error(
-            f"❌ Reply failed for ticket {ticket_id}"
+            f"Reply failed for ticket {ticket_id}"
         )
 
         return False
@@ -460,26 +357,17 @@ def send_reply(
 
         return False
 
-
-
-from Shared.queue_manager import (
-    update_status,
-    load_processed,
-    save_processed
-)
-
 # =========================
 # MAIN PROCESSOR
 # =========================
 
+import os
+import logging
 
-def process_ticket(ticket_id: int):
+async def process_ticket(ticket_id: int):
 
     logging.info(f"Starting processing for ticket {ticket_id}")
 
-    # -------------------------
-    # BLOCK IF ALREADY PROCESSED
-    # -------------------------
     processed = load_processed()
 
     if ticket_id in processed:
@@ -499,33 +387,21 @@ def process_ticket(ticket_id: int):
         # =========================
         # ASSIGN AI AGENT
         # =========================
+
         update_status(ticket_id, "Assigning Agent")
 
         assign_success = assign_ai_agent(ticket_id)
 
-        if assign_success:
-
-            update_status(
-                ticket_id,
-                "Agent Assigned"
-            )
-
-        else:
-
-            update_status(
-                ticket_id,
-                "Agent Assignment Failed"
-            )
+        update_status(
+            ticket_id,
+            "Agent Assigned" if assign_success else "Agent Assignment Failed"
+        )
 
         # =========================
-        # START
+        # DOWNLOAD FILES
         # =========================
-        update_status(ticket_id, "processing")
 
-        # =========================
-        # STAGING (DOWNLOAD)
-        # =========================
-        update_status(ticket_id, "staging")
+        update_status(ticket_id, "Downloading")
 
         staged_files = stage_attachments(ticket_id)
 
@@ -539,24 +415,32 @@ def process_ticket(ticket_id: int):
             }
 
         # =========================
-        # MOVE TO INPUT
+        # MOVE FILES
         # =========================
-        update_status(ticket_id, "uploading")
+
+        update_status(ticket_id, "Uploading")
 
         moved_files = move_staging_to_input(staged_files)
 
-        logging.info(
-            f"Files moved to INPUT: {moved_files}"
-        )
+        logging.info(f"Files moved to INPUT: {moved_files}")
 
         # =========================
-        # CSV WAIT
+        # RUN AUTOMATION (FIX HERE)
         # =========================
+
+        automation_result = await run_bulk_automation(moved_files)
+
+        logging.info(f"Automation Result: {automation_result}")
+
+        # =========================
+        # CSV RESULT
+        # =========================
+
         update_status(ticket_id, "csv_processing")
 
-        output_file = wait_for_ticket_output(ticket_id)
+        output_file = automation_result.get("output_file")
 
-        if not output_file:
+        if not output_file or not os.path.exists(output_file):
 
             update_status(ticket_id, "failed")
 
@@ -565,59 +449,17 @@ def process_ticket(ticket_id: int):
                 "message": "Output CSV not generated"
             }
 
-        logging.info(
-            f"Output file ready: {output_file}"
-        )
+        logging.info(f"Output file ready: {output_file}")
 
         # =========================
         # SEND REPLY
         # =========================
+
         update_status(ticket_id, "reply_sending")
 
         reply_sent = send_reply(ticket_id, output_file)
 
-        # =========================
-        # FINAL FLOW
-        # =========================
-        if reply_sent:
-
-            update_status(ticket_id, "reply_sent")
-
-            # =====================
-            # CLOSE TICKET
-            # =====================
-            update_status(ticket_id, "resolve_ticket")
-
-            resolve_success = resolve_ticket(ticket_id)
-
-            if resolve_success:
-
-                update_status(
-                    ticket_id,
-                    "resolved"
-                )
-
-            else:
-
-                update_status(
-                    ticket_id,
-                    "resolve_failed"
-                )
-
-            # SAVE PROCESSED
-            save_processed(ticket_id)
-
-            update_status(ticket_id, "completed")
-
-            return {
-                "success": True,
-                "ticket_id": ticket_id,
-                "reply_sent": True,
-                "output_file": output_file,
-                "message": "Processing completed successfully"
-            }
-
-        else:
+        if not reply_sent:
 
             update_status(ticket_id, "reply_failed")
 
@@ -627,6 +469,37 @@ def process_ticket(ticket_id: int):
                 "reply_sent": False,
                 "message": "Reply failed"
             }
+
+        update_status(ticket_id, "reply_sent")
+
+        # =========================
+        # RESOLVE TICKET
+        # =========================
+
+        update_status(ticket_id, "resolve_ticket")
+
+        resolve_success = resolve_ticket(ticket_id)
+
+        update_status(
+            ticket_id,
+            "resolved" if resolve_success else "resolve_failed"
+        )
+
+        # =========================
+        # SAVE PROCESSED
+        # =========================
+
+        save_processed(ticket_id)
+
+        update_status(ticket_id, "completed")
+
+        return {
+            "success": True,
+            "ticket_id": ticket_id,
+            "reply_sent": True,
+            "output_file": output_file,
+            "message": "Processing completed successfully"
+        }
 
     except Exception as e:
 
