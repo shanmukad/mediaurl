@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 from dotenv import load_dotenv
-from MediaAutomation.automation_runner import run_bulk_automation
+from Shared.automation_service import run_automation_sync
 
 load_dotenv()
 
@@ -69,7 +69,7 @@ def monitor():
 
                 logging.info(f"Attempt {attempt + 1} running automation")
 
-                result = run_bulk_automation(file_list)
+                result = run_automation_sync(file_list)
 
                 if isinstance(result, dict) and result.get("success"):
                     logging.info(f"Success: {result.get('output_file')}")
