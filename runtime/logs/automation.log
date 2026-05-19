@@ -82,3 +82,8 @@ AttributeError: 'coroutine' object has no attribute 'get'
 2026-05-18 23:55:19 - MediaAutomation.automation_runner - INFO - Uploading files
 2026-05-18 23:55:20 - MediaAutomation.automation_runner - INFO - Waiting for Download CSV button
 2026-05-18 23:55:21 - MediaAutomation.automation_runner - INFO - Saved CSV: C:\Users\DevagudiShanmuka\OneDrive - TANLA PLATFORMS LIMITED\Desktop\MediaUrl\Output\5752882_Picture1.csv
+2026-05-19 11:32:13 - MediaAutomation.automation_runner - INFO - Launching browser
+2026-05-19 11:32:18 - MediaAutomation.automation_runner - INFO - Performing login
+2026-05-19 11:32:21 - MediaAutomation.automation_runner - INFO - Uploading files
+2026-05-19 11:32:24 - MediaAutomation.automation_runner - INFO - Waiting for Download CSV button
+2026-05-19 11:32:25 - MediaAutomation.automation_runner - INFO - Saved CSV: C:\Users\DevagudiShanmuka\OneDrive - TANLA PLATFORMS LIMITED\Desktop\MediaUrl\Output\5753287_new_north.csv
