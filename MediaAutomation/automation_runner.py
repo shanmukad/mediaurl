@@ -24,7 +24,7 @@ OUTPUT_DIR = os.getenv("OUTPUT_DIR") or str(BASE_DIR / "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-async def run_bulk_automation(file_list):
+async def run_bulk_automation(file_list, ticket_id):
     """
     Upload media files and download generated CSV.
     """
@@ -173,12 +173,7 @@ async def run_bulk_automation(file_list):
 
         input_filename = os.path.basename(file_list[0])
 
-        ticket_id = input_filename.split("_", 1)[0]
-
-        original_name = (
-            os.path.splitext(input_filename)[0]
-            .split("_", 1)[-1]
-        )
+        original_name = os.path.splitext(input_filename)[0]
 
         save_path = os.path.join(
             OUTPUT_DIR,

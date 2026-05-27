@@ -106,7 +106,7 @@ def stage_attachments(ticket_id: int):
 
         local_path = os.path.join(
             ticket_stage_dir,
-            f"{ticket_id}_{attach_name}"
+            attach_name
         )
 
         try:
@@ -162,7 +162,7 @@ def stage_attachments(ticket_id: int):
 
                         dst = os.path.join(
                             ticket_stage_dir,
-                            f"{ticket_id}_{clean_name(file)}"
+                            clean_name(file)
                         )
 
                         if os.path.abspath(src) != os.path.abspath(dst):
@@ -428,7 +428,7 @@ async def process_ticket(ticket_id: int):
         # RUN AUTOMATION (FIX HERE)
         # =========================
 
-        automation_result = await run_bulk_automation(moved_files)
+        automation_result = await run_bulk_automation(moved_files,ticket_id)
 
         logging.info(f"Automation Result: {automation_result}")
 
