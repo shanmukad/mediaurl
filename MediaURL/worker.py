@@ -1,90 +1,104 @@
 import time
 import requests
-from dotenv import load_dotenv
-import os
+from playwright.sync_api import sync_playwright
 
-from Shared.ticket_processor import process_ticket
+VM_URL = "http://<YOUR_VM_IP>:8000"
+WORKER_NAME = "vpn-worker-1"
 
-load_dotenv()
 
-VM_URL = os.getenv("VM_URL")
-WORKER_NAME = os.getenv("WORKER_NAME")
-
-def get_next_job():
-
+# =========================
+# FETCH JOB FROM VM
+# =========================
+def get_job():
     try:
-
-        response = requests.get(
+        res = requests.get(
             f"{VM_URL}/worker/next-job",
-            params={
-                "worker_name": WORKER_NAME
-            }
+            params={"worker_name": WORKER_NAME},
+            timeout=10
         )
-
-        return response.json()
-
+        return res.json()
     except Exception as e:
-
         print("Error fetching job:", e)
-
         return None
 
 
-def update_status(ticket_id, status):
-
+# =========================
+# SEND RESULT BACK TO VM
+# =========================
+def complete_job(ticket_id, status):
     try:
-
         requests.post(
-            f"{VM_URL}/worker/update-status",
-            params={
+            f"{VM_URL}/worker/complete-job",
+            json={
                 "ticket_id": ticket_id,
                 "status": status
-            }
+            },
+            timeout=10
         )
-
     except Exception as e:
+        print("Error sending result:", e)
 
-        print("Status update failed:", e)
 
-
-print("🚀 Worker Started")
-
-while True:
+# =========================
+# CORE AUTOMATION LOGIC
+# =========================
+def process_ticket(ticket_id):
+    print(f"Processing ticket: {ticket_id}")
 
     try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
 
-        data = get_next_job()
+            # 🔐 STEP 1: OPEN INTERNAL UI (VPN REQUIRED)
+            page.goto("http://192.168.253.176:1002/login")
 
-        if data and data.get("success"):
+            # =========================
+            # 🔧 YOU MUST ADJUST BELOW
+            # =========================
 
-            job = data["job"]
+            # login
+            page.fill("#username", "YOUR_USERNAME")
+            page.fill("#password", "YOUR_PASSWORD")
+            page.click("button[type=submit]")
 
-            ticket_id = job["ticket_id"]
+            page.wait_for_timeout(3000)
 
-            print(f"Processing Ticket: {ticket_id}")
+            # upload step (example)
+            # page.set_input_files("input[type=file]", "/path/to/file")
 
-            try:
+            # submit / process
+            # page.click("text=Process")
 
-                update_status(ticket_id, "processing")
+            page.wait_for_timeout(5000)
 
-                process_ticket(ticket_id)
+            browser.close()
 
-                update_status(ticket_id, "completed")
-
-                print(f"Completed: {ticket_id}")
-
-            except Exception as automation_error:
-
-                print("Automation failed:", automation_error)
-
-                update_status(ticket_id, "failed")
-
-        else:
-
-            print("No jobs available")
+        return "completed"
 
     except Exception as e:
+        print("Automation error:", e)
+        return "failed"
 
-        print("Worker Error:", e)
 
-    time.sleep(10)
+# =========================
+# WORKER LOOP
+# =========================
+def run_worker():
+    print("🚀 VPN Worker Started...")
+
+    while True:
+        job = get_job()
+
+        if job and job.get("status") not in ["no_job", None]:
+            ticket_id = job["ticket_id"]
+
+            status = process_ticket(ticket_id)
+
+            complete_job(ticket_id, status)
+
+        time.sleep(5)
+
+
+if __name__ == "__main__":
+    run_worker()
