@@ -2,7 +2,7 @@ import time
 import requests
 from playwright.sync_api import sync_playwright
 
-VM_URL=http://10.20.89.11:8000
+VM_URL="http://10.20.89.11:8000"
 WORKER_NAME="shanmukad"
 
 
