@@ -16,6 +16,13 @@ from Shared.queue_manager import (
     get_results,
     load_processed
 )
+from Shared.simple_queue import (
+    add_job,
+    get_next_job,
+    complete_job as queue_complete_job,
+    update_job,
+    get_jobs
+)
 
 # =========================
 # ENV
@@ -47,13 +54,6 @@ def fetch_ticket(ticket_id):
 
 
 # =========================
-# VM → WORKER JOB STORE
-# =========================
-worker_jobs = {}
-worker_lock = __import__("threading").Lock()
-
-
-# =========================
 # FASTAPI APP
 # =========================
 app = FastAPI()
@@ -82,34 +82,47 @@ async def home():
 # =========================
 @app.post("/trigger")
 async def trigger(ticket_id: str = Form(...)):
+
     ticket_ids = [t.strip() for t in ticket_id.split(",")]
 
     processed = load_processed()
+
     results = []
 
     for tid in ticket_ids:
 
         if not tid.isdigit():
-            results.append({"ticket_id": tid, "status": "invalid"})
+
+            results.append({
+                "ticket_id": tid,
+                "status": "invalid"
+            })
+
             continue
 
         tid_int = int(tid)
 
         if tid_int in processed:
-            results.append({"ticket_id": tid, "status": "already_processed"})
+
+            results.append({
+                "ticket_id": tid,
+                "status": "already_processed"
+            })
+
             continue
 
-        # 🔥 IMPORTANT CHANGE: send to worker queue
-        with worker_lock:
-            worker_jobs[tid_int] = {
-                "ticket_id": tid_int,
-                "status": "queued"
-            }
+        # ADD TO DISTRIBUTED QUEUE
+        job = add_job(str(tid_int))
 
-        results.append({"ticket_id": tid, "status": "queued"})
+        results.append({
+            "ticket_id": tid,
+            "status": job["status"]
+        })
 
-    return {"status": "queued", "results": results}
-
+    return {
+        "status": "queued",
+        "results": results
+    }
 
 # =========================
 # WORKER: FETCH NEXT JOB
@@ -117,14 +130,12 @@ async def trigger(ticket_id: str = Form(...)):
 @app.get("/worker/next-job")
 def next_job(worker_name: str):
 
-    with worker_lock:
-        for job_id, job in worker_jobs.items():
-            if job["status"] == "queued":
-                job["status"] = "assigned"
-                job["worker"] = worker_name
-                return job
+    job = get_next_job(worker_name)
 
-    return {"status": "no_job"}
+    if not job:
+        return {"status": "no_job"}
+
+    return job
 
 
 # =========================
@@ -133,12 +144,11 @@ def next_job(worker_name: str):
 @app.post("/worker/complete-job")
 def complete_job(payload: dict = Body(...)):
 
-    ticket_id = payload.get("ticket_id")
+    ticket_id = str(payload.get("ticket_id"))
+
     status = payload.get("status")
 
-    with worker_lock:
-        if ticket_id in worker_jobs:
-            worker_jobs[ticket_id]["status"] = status
+    queue_complete_job(ticket_id, status)
 
     return {"success": True}
 
@@ -149,14 +159,19 @@ def complete_job(payload: dict = Body(...)):
 @app.get("/status/{ticket_id}")
 def status(ticket_id: int):
 
-    with worker_lock:
-        job = worker_jobs.get(ticket_id)
+    jobs = get_jobs()
 
-    if not job:
-        return {"status": "not_found"}
+    for job in jobs:
 
-    return {"status": job["status"]}
+        if str(job["ticket_id"]) == str(ticket_id):
 
+            return {
+                "status": job["status"]
+            }
+
+    return {
+        "status": "not_found"
+    }
 
 # =========================
 # VALIDATION (UNCHANGED)
